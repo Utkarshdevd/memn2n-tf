@@ -4,6 +4,18 @@ body {
   padding: 1em;
   line-height: 1.5em;
 }
+.center img
+{
+    display: block;
+    margin: 0.7rem auto; /* you can replace the vertical '0.7rem' by
+                            whatever floats your boat, but keep the
+                            horizontal 'auto' for this to work */
+    /* whatever else styles you fancy here */
+}
+figcaption
+{
+        text-align: center;
+}
 
 /* header and footer areas */
 .menu li { display: inline-block; }
