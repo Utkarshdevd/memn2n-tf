@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>My New Hugo Site</title>
+    <link>https://utkarshdevd.github.io/memn2n-tf/</link>
+    <description>Recent content on My New Hugo Site</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 19 Jul 2017 00:30:29 +0530</lastBuildDate>
+    
+	<atom:link href="https://utkarshdevd.github.io/memn2n-tf/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Implementing Memory networks in Tensorflow</title>
+      <link>https://utkarshdevd.github.io/memn2n-tf/post/memn2n/</link>
+      <pubDate>Wed, 19 Jul 2017 00:30:29 +0530</pubDate>
+      
+      <guid>https://utkarshdevd.github.io/memn2n-tf/post/memn2n/</guid>
+      <description>We will implement the End to End memory networks paper. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s blog.
+ This blog assumes a basic understanding of Tensorflow and intermediate understanding of Python 2 or Python 3</description>
+    </item>
+    
+  </channel>
+</rss>

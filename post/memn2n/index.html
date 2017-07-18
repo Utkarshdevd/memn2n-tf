@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Implementing Memory networks in Tensorflow | My New Hugo Site</title>
+    <link rel="stylesheet" href="/memn2n-tf/css/style.css" />
+    <link rel="stylesheet" href="/memn2n-tf/css/fonts.css" />
+    
+    <script type="text/javascript" async
+        src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+        MathJax.Hub.Config({
+                           tex2jax: {
+                           inlineMath: [['$','$'], ['\\(','\\)']],
+                           displayMath: [['$$','$$']],
+                           processEscapes: true,
+                           processEnvironments: true,
+                           skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                           TeX: { equationNumbers: { autoNumber: "AMS" },
+                           extensions: ["AMSmath.js", "AMSsymbols.js"] }
+                           }
+                           });
+                           MathJax.Hub.Queue(function() {
+                                             
+                                             
+                                             
+                                             var all = MathJax.Hub.getAllJax(), i;
+                                             for(i = 0; i < all.length; i += 1) {
+                                             all[i].SourceElement().parentNode.className += ' has-jax';
+                                             }
+                                             });
+                                             
+                                             MathJax.Hub.Config({
+                                                                
+                                                                TeX: { equationNumbers: { autoNumber: "AMS" } }
+                                                                });
+        </script>  </head>
+
+  
+
+
+  <body>
+    <nav>
+    <ul class="menu">
+      
+    </ul>
+    <hr/>
+    </nav>
+
+<div class="article-meta">
+<h1><span class="title">Implementing Memory networks in Tensorflow</span></h1>
+
+<h2 class="date">2017/07/19</h2>
+</div>
+
+<main>
+
+
+<p>We will implement the End to End memory networks paper. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s blog.</p>
+
+<blockquote>
+<p>This blog assumes a basic understanding of Tensorflow and intermediate understanding of Python 2 or Python 3</p>
+</blockquote>
+
+<h3 id="what-is-a-memory-network">What is a memory network?</h3>
+
+<p>Traditionally RNNs and its variants(LSTM, GRU) have been phenomenally successful in PoS tagging and other NLP tasks. But have failed when it comes to reasoning tasks, where they have to somehow remember items as they lack a ‘memory’ component. Thus these networks were provided an explicit memory for such tasks to overcome restrictions on long term dependencies. They also use soft attention to further model the reading and writing of these memories. 
+First we will understand this particular Memory network abbreviated as MemN2N. Here is the diagram of a simple network of 1 hop and the original code in Matlab.</p>
+
+
+<figure >
+    
+        <img src="/images/simpleMemn2n.jpg" />
+    
+    
+    <figcaption>
+        <h4>A simple 1-hop memory network</h4>
+        
+    </figcaption>
+    
+</figure>
+
+
+<p>We will concentrate on replicating the bAbI task in the paper without temporal encoding. That is left as an exercise to the reader.
+Now lets see the MemN2N in general and code it up part by part.</p>
+
+<h3 id="parts-of-memn2n">Parts of MemN2N</h3>
+
+<p>In contrast to hard attention used in earlier models of Memory networks, MemN2N uses soft attention over the memory to select them. This is done using a simple softmax.</p>
+
+<h4 id="input">Input</h4>
+
+<p>We embed all sentences ($x_i$), questions ($q$) and answers ($a$) using different embedding matrices. So we keep a dictionary of all words that we can see in the dataset, V. Input consists of making the embedding matrices $C$, $A$ and $B$. For making these we will need to define an embedding size, number of memories (m) </p>
+
+
+<figure >
+    
+        <img src="/images/nHop.png" />
+    
+    
+    <figcaption>
+        <h4>A 3-hop network</h4>
+        
+    </figcaption>
+    
+</figure>
+
+
+<h4 id="memory">Memory</h4>
+
+<h4 id="output">Output</h4>
+
+<h4 id="answer">Answer</h4>
+
+</main>
+
+  <footer>
+  
+  
+  </footer>
+
+</body>
+</html>
+
