@@ -56,13 +56,13 @@
 <main>
 
 
-<p>We will implement the End to End memory networks paper. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s blog.</p>
+<p>We will implement the End to End memory networks <a href="https://arxiv.org/abs/1503.08895" title="End to End memory networks">paper</a>. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s <a href="https://danijar.com/structuring-your-tensorflow-models/" title="Hafner’s blog">blog</a>.</p>
 
 <blockquote>
 <p>This blog assumes a basic understanding of Tensorflow and intermediate understanding of Python 2 or Python 3</p>
 </blockquote>
 
-<h3 id="what-is-a-memory-network">What is a memory network?</h3>
+<h2 id="what-is-a-memory-network">What is a memory network?</h2>
 
 <p>Traditionally RNNs and its variants(LSTM, GRU) have been phenomenally successful in PoS tagging and other NLP tasks. But have failed when it comes to reasoning tasks, where they have to somehow remember items as they lack a ‘memory’ component. Thus these networks were provided an explicit memory for such tasks to overcome restrictions on long term dependencies. They also use soft attention to further model the reading and writing of these memories. 
 First we will understand this particular Memory network abbreviated as MemN2N. Here is the diagram of a simple network of 1 hop and the original code in Matlab.</p>
@@ -84,15 +84,60 @@ First we will understand this particular Memory network abbreviated as MemN2N. H
 <p>We will concentrate on replicating the bAbI task in the paper without temporal encoding. That is left as an exercise to the reader.
 Now lets see the MemN2N in general and code it up part by part.</p>
 
-<h3 id="parts-of-memn2n">Parts of MemN2N</h3>
+<h2 id="parts-of-memn2n">Parts of MemN2N</h2>
 
 <p>In contrast to hard attention used in earlier models of Memory networks, MemN2N uses soft attention over the memory to select them. This is done using a simple softmax.</p>
 
-<h4 id="input">Input</h4>
+<h3 id="input">Input</h3>
 
-<p>We embed all sentences ($x_i$), questions ($q$) and answers ($a$) using different embedding matrices. So we keep a dictionary of all words that we can see in the dataset, V. Input consists of making the embedding matrices $C$, $A$ and $B$. For making these we will need to define an embedding size, number of memories (m) </p>
+<p>We embed all sentences ($x_i$), questions ($q$) and answers ($a$) using different embedding matrices. So we keep a dictionary of all words that we see in the dataset, $V$. Such that each word is mapped to its index.
+Input consists of making the embedding matrices $C$, $A$ and $B$. Where $C$ and $A$ map to memory vectors ($m_i$) and output vectors ($c_i$) respectively. For making each of these we will need to define an embedding size and number of memories. Since we have a OOP approach, we can get those variables from a FLAG file that is reccomended from tensorflow. So we create a <code>_create_placeholders</code> function and call the placeholder object to hold the data. You know placeholders right?</p>
 
-<p>
+<h4 id="what-are-placeholders">What are placeholders?</h4>
+
+<p>Tensorflow seperates the data feeding process with the actual learning machine. This is done by defining placeholders, think of them as buckets that you place the data in each time step or what every type of interval you like to define. And the learning algorithms has its matrices and data structs collect that data and do its process.</p>
+
+<p>Okay, now lets make the <code>_create_placeholders</code> function,</p>
+
+<pre><code>def _create_placeholders(self):
+	self._stories = tf.placeholder(tf.int32, [None, self._memory_size, self._sentence_size], name=&quot;stories&quot;)
+	self._queries = tf.placeholder(tf.int32, [None, self._sentence_size], name=&quot;queries&quot;)
+	self._answers = tf.placeholder(tf.int32, [None, self._vocab_size], name=&quot;answers&quot;)
+</code></pre>
+
+<p>Now we make the embedding matrices in 2 steps, making the placeholders first,</p>
+
+<pre><code>	nil_word = tf.zeros([1, self._embedding_size])
+	A_placeholder = tf.concat(axis=0, values=
+		[nil_word, self._normal_init([self._vocab_size-1, self._embedding_size])])
+	C_placeholder = tf.concat(axis=0, values=
+		[nil_word, self._normal_init([self._vocab_size-1, self._embedding_size])])
+</code></pre>
+
+<p><code>nil_word</code> is the empty word, meaning a null value we add as the first entry in the placeholder.
+Then we make the embedding matrices, inside the <code>memn2n</code> scope. Here we add A, we name it A_1 as the code is kept open to the weight tying that the paper says it experimented with, you can make more A_n type matrices if you want to untie the weights.</p>
+
+<pre><code>	with tf.variable_scope(&quot;memn2n&quot;):
+		self.A_1 = tf.Variable(A_placeholder, name=&quot;A&quot;)
+</code></pre>
+
+<p>Now we add the idea of hops, more A type matrices can be added in the same fashion. Here we add matrices to an array corresponding to the C matrix at each hop. Number of hops in the memory are denoted by <code>n_hops</code>. Each hop has its own scope.</p>
+
+<pre><code>	with tf.variable_scope(&quot;memn2n&quot;):
+		self.A_1 = tf.Variable(A_placeholder, name=&quot;A&quot;)
+		self.C = []
+		for hop_number in range(self._hops):
+			with tf.variable_scope(&quot;hop_number{}&quot;.format(hop_number)):
+				self.C.append(tf.Variable(C_placeholder, name=&quot;C&quot;))
+</code></pre>
+
+<p>we also add the learning rate as a graph variable, so this lets us change the rate as we learn. The MemN2N paper uses simulated annealing for this.</p>
+
+<pre><code>	self._lr = tf.placeholder(tf.float32, [], name=&quot;learning_rate&quot;)
+</code></pre>
+
+<p>By default we keep the number of hops as 3 as reported in the paper with good results, with tied A matrices. This is how the paper shows it,
+
 <figure class="center">
     
         <img src="../../images/nHop.png" width="400" />
@@ -104,13 +149,13 @@ Now lets see the MemN2N in general and code it up part by part.</p>
     </figcaption>
     
 </figure>
- Some</p>
+</p>
 
-<h4 id="memory">Memory</h4>
+<h3 id="memory">Memory</h3>
 
-<h4 id="output">Output</h4>
+<h3 id="output">Output</h3>
 
-<h4 id="answer">Answer</h4>
+<h3 id="answer">Answer</h3>
 
 </main>
 
