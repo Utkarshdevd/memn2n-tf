@@ -17,7 +17,7 @@
       <pubDate>Wed, 19 Jul 2017 00:30:29 +0530</pubDate>
       
       <guid>https://utkarshdevd.github.io/memn2n-tf/post/memn2n/</guid>
-      <description>We will implement the End to End memory networks paper. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s blog.
+      <description>We will implement the End to End memory networks paper. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s blog. The final code of this blog is here.
  This blog assumes a basic understanding of Tensorflow and intermediate understanding of Python 2 or Python 3</description>
     </item>
     

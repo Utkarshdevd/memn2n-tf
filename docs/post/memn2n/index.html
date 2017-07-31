@@ -31,7 +31,7 @@
 <main>
 
 
-<p>We will implement the End to End memory networks <a href="https://arxiv.org/abs/1503.08895" title="End to End memory networks">paper</a>. We shall use Dom Lun’s reader functions and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s <a href="https://danijar.com/structuring-your-tensorflow-models/" title="Hafner’s blog">blog</a>.</p>
+<p>We will implement the End to End memory networks <a href="https://arxiv.org/abs/1503.08895" title="End to End memory networks">paper</a>. We shall use Dom Lun’s <a href="https://github.com/domluna/memn2n/blob/master/data_utils.py" title="reader functions">reader functions</a>  and concentrate on getting the simplest implementation of the network. In this process we will learn how to manipulate the memories to get the output. We shall use Tensorflow 1.0.1 for this code and loosely use the code structure from Hafner’s <a href="https://danijar.com/structuring-your-tensorflow-models/" title="Hafner’s blog">blog</a>. The final code of this blog is <a href="https://github.com/Utkarshdevd/memn2n-TFcode" title="Blog code">here</a>.</p>
 
 <blockquote>
 <p>This blog assumes a basic understanding of Tensorflow and intermediate understanding of Python 2 or Python 3</p>
@@ -223,13 +223,175 @@ The matrix <code>$W$</code> transforms to the logits corresponing to the words t
 		self._scores = tf.nn.softmax(self._logits)
 </code></pre>
 
+<p>This concludes the <code>_inference</code> function.</p>
+
+<h3 id="learning">Learning</h3>
+
+<p>Now we add the loss function, the paper uses cross entropy sum and we make the appropriate scopes.</p>
+
+<pre><code>	def _create_loss(self):
+		with tf.variable_scope(&quot;loss&quot;):
+			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self._scores, labels=tf.cast
+				(self._answers, tf.float32), name=&quot;cross_entropy&quot;)
+			self._loss = tf.reduce_sum(cross_entropy, name=&quot;cross_entropy_sum&quot;)
+</code></pre>
+
+<p>The <code>softmax_cross_entropy_with_logits</code> function takes in the logits or scores we calculated at the end of the inference stage, and the training answers.
+Then we make the accuracy that we keep printing at each learning step,</p>
+
+<pre><code>		with tf.variable_scope(&quot;accuracy&quot;):
+			self.predictions = tf.argmax(self._scores, 1, name=&quot;predictions&quot;)
+			correct_predictions = tf.equal(self.predictions, tf.argmax(self._answers, 1))
+			self._accuracy = tf.reduce_mean(tf.cast(correct_predictions, &quot;float&quot;), name=&quot;accuracy&quot;)
+			#self._predictions = tf.argmax(self._logits, 1, name=&quot;prediction&quot;)
+			self._prediction_probabilities = tf.nn.softmax(self._logits, name=&quot;predict_prob&quot;)
+</code></pre>
+
+<p>Now we set the GD optimizer and perform the gradient clipping that the paper uses,</p>
+
+<pre><code>	def _create_optimizer(self):
+		with tf.variable_scope(&quot;optimizer&quot;):
+			self._global_step = tf.Variable(0, name=&quot;global_step&quot;, trainable=False)
+			self._optimizer = tf.train.GradientDescentOptimizer(learning_rate=self._lr)
+			grads_and_vars = self._optimizer.compute_gradients(loss=self._loss)
+			grads_and_vars = [(tf.clip_by_norm(g, self._max_grad_norm), v) for g,v in grads_and_vars]
+			# noise for temporal
+			# zeronilslot
+			self._train = self._optimizer.apply_gradients(grads_and_vars, global_step=self._global_step)
+</code></pre>
+
+<p>There are comments for adding random noise to the temporal matrix that the paper used to allow some notion of time steps in the training, this is left as an exercise for the reader.
+The <code>self._global_step</code> is a graph level global variable that we use as a counter.
+So now we have all the matrices and functions that we can attach the summary writer to. This next step allows us to use the tensorboard and visualize our training and testing progress.</p>
+
 <h3 id="summaries">Summaries</h3>
 
-<p>To be contd&hellip;</p>
+<p>This is how we create a File Writer object in tensorflow versions above 1.0,</p>
+
+<pre><code>def _create_summary(self):
+	writer = tf.summary.FileWriter(&quot;test&quot;, self._sess.graph)
+	timestamp = str(int(time.time()))
+	out_dir = os.path.abspath(os.path.join(os.path.curdir, &quot;runs&quot;, timestamp))
+	print(&quot;Writing to {}\n&quot;.format(out_dir))
+</code></pre>
+
+<p>We then attach a writer to the loss and the accuracy variables,</p>
+
+<pre><code>	loss_summary = tf.summary.scalar(&quot;loss&quot;, self._loss)
+	acc_summary = tf.summary.scalar(&quot;accuracy&quot;, self._accuracy)
+</code></pre>
+
+<p>Now we seperate the training and the testing recordings, here is the training records in an appropriately named folder,</p>
+
+<pre><code>	self._train_summary_op = tf.summary.merge([loss_summary, acc_summary])
+	train_summary_dir =  os.path.join(out_dir, &quot;summaries&quot;, &quot;train&quot;)
+	self._train_summary_writer = tf.summary.FileWriter(train_summary_dir, self._sess.graph)
+</code></pre>
+
+<p>this is the dev or test records,</p>
+
+<pre><code>	self._dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
+	dev_summary_dir = os.path.join(out_dir, &quot;summaries&quot;, &quot;dev&quot;)
+	self._dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, self._sess.graph)
+</code></pre>
+
+<p>Now we add the checkpoints that record all the graph variables and values so, you can keep saving them. This is reccomended if you have timeouts on your cpu/gpu servers, so you can pickup training where you left it.</p>
+
+<pre><code>	# Checkpointing
+	checkpoint_dir = os.path.abspath(os.path.join(out_dir, &quot;checkpoints&quot;))
+	self._checkpoint_prefix = os.path.join(checkpoint_dir, &quot;model&quot;)
+	# Tensorflow assumes this directory already exists so we need to create it
+	if not os.path.exists(checkpoint_dir):
+	    os.makedirs(checkpoint_dir)
+	self._saver = tf.train.Saver(tf.global_variables())
+</code></pre>
+
+<h3 id="feeding-data">Feeding data</h3>
+
+<p>To make this graph work we need to use the placeholders we had created and provide the feeder functions to it,</p>
+
+<pre><code>def _train_step(self, stories, queries, answers, lr):
+	feed_dict = {
+		self._stories: stories,
+		self._queries: queries,
+		self._answers: answers,
+		self._lr: lr
+	}
+	_, step, summaries, loss, accuracy = self._sess.run(
+		[self._train, self._global_step, self._train_summary_op, self._loss, self._accuracy],
+		feed_dict=feed_dict)
+	time_str = datetime.datetime.now().isoformat()
+	print(&quot;{}: step {}, loss {:g}, acc {:g}&quot;.format(time_str, step, loss, accuracy))
+	self._train_summary_writer.add_summary(summaries, step)
+</code></pre>
+
+<p>And this is for the dev or test step,</p>
+
+<pre><code>def _dev_step(self, stories, queries, answers):
+	feed_dict = {
+		self._stories: stories,
+		self._queries: queries,
+		self._answers: answers,
+	}
+	step, summaries, loss, accuracy  = self._sess.run(
+		[self._global_step, self._dev_summary_op, self._loss,  self._accuracy],
+		feed_dict=feed_dict)
+	time_str = datetime.datetime.now().isoformat()
+	print(&quot;{}: step {}, loss {:g}, acc {:g}&quot;.format(time_str, step, loss, accuracy))
+	self._dev_summary_writer.add_summary(summaries, step)
+</code></pre>
+
+<p>The <code>feed_dict</code> keeps the stories, queries, answers and the learning rate, it attaches it to the placeholders we had created earlier.
+We then call the run function, give it the array of variables to be computed and returned, then we print them. Finally we add the summary variables.</p>
 
 <h3 id="running">Running</h3>
 
-<h3 id="tensorboard">Tensorboard</h3>
+<p>Now lets go through the building and running of the graph,</p>
+
+<pre><code>def build_and_run(self, trainS, valS, trainQ, valQ, trainA, valA, batches):
+	self._create_placeholders()
+	self._inference()
+	self._create_loss()
+	self._create_optimizer()
+	self._create_summary()
+	self._sess.run(tf.global_variables_initializer())
+	lr = self._learning_rate
+</code></pre>
+
+<p>Its easy to see how the graph builds up and the loss, optimizers get attached. Then the <code>_sess</code> is used to run the initializer, building the graph.
+Now to the training and testing,</p>
+
+<pre><code>	for step in range(1, self._epochs):
+
+		np.random.shuffle(batches)
+		for start,end in batches:
+			s = trainS[start:end]
+			q = trainQ[start:end]
+			a = trainA[start:end]
+
+			print(&quot;TRAIN STEP&quot;)
+			self._train_step(stories=s, queries=q, answers=a, lr=lr)
+			current_step = tf.train.global_step(self._sess, self._global_step)
+</code></pre>
+
+<p>This part shuffles the entire dataset, using the reader functions we borrow from Dom Lun,
+Now we write the simulated annealing part,</p>
+
+<pre><code>			if current_step % self._evaluate_every == 0:
+				print(&quot;DEV STEP:&quot;)
+				self._dev_step(valS, valQ, valA)
+			if current_step % self._checkpoint_every == 0:
+				save_path = self._saver.save(self._sess, self._checkpoint_prefix, global_step=current_step)
+				print(&quot;Saving checkpoints to {}\n&quot;.format(save_path))
+			if (current_step+1) % self._anneal_every == 0 and current_step &lt; 100:
+				lr /= 2
+</code></pre>
+
+<p>So after each time step interval, we keep reducing the learning rate by half, so the local minima is atleast assured.</p>
+
+<h3 id="visualizing-training-and-testing-using-tensorboard">Visualizing training and testing using Tensorboard</h3>
+
+<p>To be added&hellip;</p>
 
 </main>
 
