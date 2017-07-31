@@ -7,34 +7,9 @@
     <link rel="stylesheet" href="/memn2n-tf/css/style.css" />
     <link rel="stylesheet" href="/memn2n-tf/css/fonts.css" />
     
-    <script type="text/javascript" async
-        src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
-        MathJax.Hub.Config({
-                           tex2jax: {
-                           inlineMath: [['$','$'], ['\\(','\\)']],
-                           displayMath: [['$$','$$']],
-                           processEscapes: true,
-                           processEnvironments: true,
-                           skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-                           TeX: { equationNumbers: { autoNumber: "AMS" },
-                           extensions: ["AMSmath.js", "AMSsymbols.js"] }
-                           }
-                           });
-                           MathJax.Hub.Queue(function() {
-                                             
-                                             
-                                             
-                                             var all = MathJax.Hub.getAllJax(), i;
-                                             for(i = 0; i < all.length; i += 1) {
-                                             all[i].SourceElement().parentNode.className += ' has-jax';
-                                             }
-                                             });
-                                             
-                                             MathJax.Hub.Config({
-                                                                
-                                                                TeX: { equationNumbers: { autoNumber: "AMS" } }
-                                                                });
-        </script>  </head>
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+</head>
 
   
 
@@ -90,12 +65,14 @@ Now lets see the MemN2N in general and code it up part by part.</p>
 
 <h3 id="input">Input</h3>
 
-<p>We embed all sentences ($x_i$), questions ($q$) and answers ($a$) using different embedding matrices. So we keep a dictionary of all words that we see in the dataset, $V$. Such that each word is mapped to its index.
-Input consists of making the embedding matrices $C$, $A$ and $B$. Where $C$ and $A$ map to memory vectors ($m_i$) and output vectors ($c_i$) respectively. For making each of these we will need to define an embedding size and number of memories. Since we have a OOP approach, we can get those variables from a FLAG file that is reccomended from tensorflow. So we create a <code>_create_placeholders</code> function and call the placeholder object to hold the data. You know placeholders right?</p>
+<p>We embed all sentences (<code>$x_i$</code>), questions (<code>$q$</code>) and answers (<code>$a$</code>) using different embedding matrices. So we keep a dictionary of all words that we see in the dataset, $V$. Such that each word is mapped to its index.
+Input consists of making the embedding matrices <code>$C$</code>, <code>$A$</code> and <code>$B$</code>. Where <code>$C$</code> and <code>$A$</code> map to memory vectors (<code>$m_i$</code>) and output vectors (<code>$c_i$</code>) respectively. For making each of these we will need to define an embedding size and number of memories. Since we have a OOP approach, we can get those variables from a FLAG file that is reccomended from tensorflow. So we create a <code>_create_placeholders</code> function and call the placeholder object to hold the data. You know placeholders right?</p>
 
+<blockquote>
 <h4 id="what-are-placeholders">What are placeholders?</h4>
 
 <p>Tensorflow seperates the data feeding process with the actual learning machine. This is done by defining placeholders, think of them as buckets that you place the data in each time step or what every type of interval you like to define. And the learning algorithms has its matrices and data structs collect that data and do its process.</p>
+</blockquote>
 
 <p>Okay, now lets make the <code>_create_placeholders</code> function,</p>
 
@@ -115,7 +92,8 @@ Input consists of making the embedding matrices $C$, $A$ and $B$. Where $C$ and 
 </code></pre>
 
 <p><code>nil_word</code> is the empty word, meaning a null value we add as the first entry in the placeholder.
-Then we make the embedding matrices, inside the <code>memn2n</code> scope. Here we add A, we name it A_1 as the code is kept open to the weight tying that the paper says it experimented with, you can make more A_n type matrices if you want to untie the weights.</p>
+Then we make the embedding matrices, inside the <code>memn2n</code> scope. Here we add A, we name it A_1 as the code is kept open to the weight tying that the paper says it experimented with, you can make more A_k type matrices if you want to untie the weights. We follow the adjacent weight sharing described in the paper, consecutive A matrices are equal to the previous C matrix.
+<code>$$ A_k = C_{k-1}$$</code></p>
 
 <pre><code>	with tf.variable_scope(&quot;memn2n&quot;):
 		self.A_1 = tf.Variable(A_placeholder, name=&quot;A&quot;)
@@ -131,12 +109,12 @@ Then we make the embedding matrices, inside the <code>memn2n</code> scope. Here 
 				self.C.append(tf.Variable(C_placeholder, name=&quot;C&quot;))
 </code></pre>
 
-<p>we also add the learning rate as a graph variable, so this lets us change the rate as we learn. The MemN2N paper uses simulated annealing for this.</p>
+<p>we also add the learning rate as a olaceholder, so this lets us change the rate as we learn. The MemN2N paper uses simulated annealing for this.</p>
 
 <pre><code>	self._lr = tf.placeholder(tf.float32, [], name=&quot;learning_rate&quot;)
 </code></pre>
 
-<p>By default we keep the number of hops as 3 as reported in the paper with good results, with tied A matrices. This is how the paper shows it,
+<p>By default we keep the number of hops as <code>$k=3$</code> as reported in the paper with good results, with weight sharing. This is how the paper shows it,
 
 <figure class="center">
     
@@ -153,14 +131,115 @@ Then we make the embedding matrices, inside the <code>memn2n</code> scope. Here 
 
 <h3 id="memory">Memory</h3>
 
+<p>Before we go on to make the embedding part of code, Section 4.1 describes the position endcoding to define a sense of ordering in a sentence. This will encode how the position of the words matter, keeping the last word independent as it hints the end. The Matlab <a href="https://github.com/facebook/MemNN/blob/946c4784b59dcf053bbbbb9637d6814bc152c276/MemN2N-babi-matlab/build_model.m" title="Position encoding code">code</a> has the function defined, we will just convert it to a python function.</p>
+
+<pre><code>def position_encoder(embedding_size, sentence_size):
+	encoding = np.ones((embedding_size, sentence_size), dtype=np.float32)
+	# 1 based indexing
+	for k in range(1, embedding_size+1):
+		for j in range(1, sentence_size+1):
+			encoding[k-1, j-1] = (1 - j/sentence_size) - (k/embedding_size) * (1 - 2 * j/sentence_size)
+	
+	# make last word immune to encoding
+	encoding[:, -1] = 1.0
+	return np.transpose(encoding)
+</code></pre>
+
+<p>We can now add the embedding lookup code, tensorflow gives functions to make the conversion from a sentence to its embedded version. Since this is the part where the actual network gets built we make a new <code>_inference</code> function. Here, We make the <code>$B$</code> matrix, which uses the same first A matrix for looking up the words in the query. So the same set of embeddings are used for the question and the sentence. Going back the the 1 hop network image, we see that <code>$B$</code> gives us the resultant vector <code>$u$</code>.
+The <code>reduce_sum</code> function, in the following code, computes the dot product between the encoding and the embeddings for the question, along the <code>axis=1</code>. This provides the weighting to each word based on the positional encoding.</p>
+
+<pre><code>def _inference(self):
+	with tf.variable_scope(&quot;memn2n&quot;):
+		# adjacent weight, B = A_1
+		B = tf.nn.embedding_lookup(self.A_1, self._queries)
+		u_1 = tf.reduce_sum(B * self._encoding, 1)
+		u = [u_1]
+
+</code></pre>
+
+<p>Now to get the <code>$p_i$</code> we have to get <code>$m_i$</code> and use it in the following operation with the softmax. This probability can be understood as a soft attention over the memories, what memory is most important for this question that is asked.
+<code>$$p_i = Softmax(u^Tm_i)$$</code>
+Lets start with getting <code>$m_i$</code>, from its correspoding lookup. We do this at each hop, this is what the first hop looks like,</p>
+
+<pre><code>for hop_number in range(self._hops):
+	if hop_number == 0:
+		# first hop, C_1 = A_1
+		A_lookup = tf.nn.embedding_lookup(self.A_1, self._stories)
+		m_A = tf.reduce_sum(A_lookup * self._encoding, 1)
+</code></pre>
+
+<p>In the code above, <code>m_A</code> has the encoding for the story sentences.</p>
+
+<pre><code>	else:
+		with tf.variable_scope(&quot;hop_number{}&quot;.format(hop_number-1)):
+			# A_k+1 = C_k --&gt; C[-1], topmost C
+			A_lookup = tf.nn.embedding_lookup(self.C[hop_number-1], self._stories)
+			m_A = tf.reduce_sum(A_lookup * self._encoding, 1)
+
+</code></pre>
+
+<p>This is the adjacent weight sharing in action, for the hops after the first we define <code>m_A</code> as the last <code>C</code> matrix that is positionally encoded.</p>
+
+<pre><code>	u_temp = tf.transpose(tf.expand_dims(u[-1], -1), [0, 2, 1])
+	dot = tf.reduce_sum(m_A * u_temp, 2)
+	print(dot.get_shape())
+	prob = tf.nn.softmax(dot)
+	P = tf.transpose(tf.expand_dims(prob, -1), [0, 2, 1])
+</code></pre>
+
+<p>Since we have the training done in batches, all matrices reflect that. We arrange <code>u_temp</code> such that we can align it with the memories. This arrangement corresponds to the <code>$u^T$</code> in the formula. We then compute the dot product, and softmax over it which normalizes it, resulting in <code>P</code>, which we rearrange to the original dimensions.
+Now we make <code>C</code>,</p>
+
+<pre><code>	with tf.variable_scope(&quot;hop_number{}&quot;.format(hop_number)):
+		C_lookup = tf.nn.embedding_lookup(self.C[hop_number], self._stories)
+		m_C = tf.reduce_sum(C_lookup * self._encoding, 1)
+</code></pre>
+
+<p>We make <code>m_C</code> for each hop, and store these in the global <code>C</code> array so we can share the weights with the adjacent <code>A_k</code> matrix.</p>
+
 <h3 id="output">Output</h3>
 
+<p>Having gotten <code>P</code>, we now need to do the soft attention over the matrix <code>C</code> that corresponds to preferring a particular sentence as releveant to the query. We combine <code>$c_i$</code> and <code>$p_i$</code>,
+<code>$$o = \sum_{i} p_i c_i$$</code>
+Which tranlates to the following code,</p>
+
+<pre><code>	m_C_temp = tf.transpose(m_C, [0, 2, 1])
+	o_k = tf.reduce_sum(m_C_temp * P, 2)
+	u_k = u[-1] + o_k
+	u.append(u_k)
+</code></pre>
+
+<p>We compute <code>$o$</code> at the end of each hop, we add it to an array. And now we make the answer.</p>
+
 <h3 id="answer">Answer</h3>
+
+<p>The answer <code>$\hat{a}$</code> is computed like this,
+<code>$$\hat{a} = Softmax(W(o + u))$$</code>
+The matrix <code>$W$</code> transforms to the logits corresponing to the words that could be answers, here this could also be the final vector that could be fed to an RNN to generate more verbose answers. The bAbI has 1 word answers, so we just softmax these logits to get probablility of each word to be answer. Here is the code that does this,</p>
+
+<pre><code>	# W = last C, weight tying
+	with tf.variable_scope(&quot;hop_number{}&quot;.format(hop_number)):
+		self._logits = tf.matmul(u_k, tf.transpose(self.C[-1], [1,0]))
+		self._scores = tf.nn.softmax(self._logits)
+</code></pre>
+
+<h3 id="summaries">Summaries</h3>
+
+<p>To be contd&hellip;</p>
+
+<h3 id="running">Running</h3>
+
+<h3 id="tensorboard">Tensorboard</h3>
 
 </main>
 
   <footer>
-  
+  <script src="//yihui.name/js/math-code.js"></script>
+<script async src="//cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
+
+<script async src="//yihui.name/js/center-img.js"></script>
+
   
   </footer>
 
